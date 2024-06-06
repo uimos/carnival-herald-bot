@@ -32,9 +32,9 @@ There are 3 types of list
 ## Installation
 Create .env file to store your config.
 ```
-BOT_TOKEN = '';
-GUILD_ID = '';
-CHANNEL_ID = '';
+BOT_TOKEN=abc
+GUILD_ID=123
+CHANNEL_ID=123
 ```
 
 Install all the packages
