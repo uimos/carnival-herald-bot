@@ -1,3 +1,18 @@
-{
-  "messageId": ""
-}
+[
+  {
+    "name": "bought",
+    "messageId": ""
+  },
+  {
+    "name": "decided",
+    "messageId": ""
+  },
+  {
+    "name": "considering",
+    "messageId": ""
+  },
+  {
+    "name": "discount",
+    "messageId": ""
+  }
+]
