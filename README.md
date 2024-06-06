@@ -14,12 +14,19 @@ There are 3 types of list
 ## Available commands:
 
 `!help` - List all available commands.
+
 `!addBought <game_id> <message (optional)>` - Add a game to the bought list. Message is optional.
+
 `!addDecided <game_id> <message (optional)>` - Add a game to the decided list. Message is optional.
+
 `!addConsidering <game_id> <message (optional)>` - Add a game to the considering list. Message is optional.
+
 `!removeGame <game_id>` - Remove a game from the list.
+
 `!listGames` - Display instructions to set up the message to hold the game list.
+
 `!setMessageId <type> <message_id>` - Set the message to hold the latest information for the list of a specified type. (type: bought, decided, considering, discount)
+
 `!checkDiscounts` - Trigger a check for discounts on the games in the list.
 
 ## Installation
