@@ -33,14 +33,14 @@ function saveGames(games) {
   }
 }
 
-function updateMessageId(type, messageId) {
+function setMessageId(type, messageId) {
   try {
     const data = fs.readFileSync(SETTING_FILE_PATH);
     const list = JSON.parse(data);
     const messageType = list.find(item => item.name === type);
     messageType.messageId = messageId;
     fs.writeFileSync(SETTING_FILE_PATH, JSON.stringify(list, null, 2));
-    updateOriginalMessage1(type, messageId);
+    updateOriginalMessage(type, messageId);
     return true;
   } catch (error) {
     console.error('Error writing message id file:', error);
@@ -413,13 +413,13 @@ client.once('ready', () => {
 client.on('messageCreate', async message => {
   const sendHelpMessage = () => {
     const helpText = `Available commands:\n\n` +
-      `\*\*!addBought\*\* \*\*\*<game_id> <message (optional)>\*\*\* - Add a game to the bought list.\n` +
-      `\*\*!addDecided\*\* \*\*\*<game_id> <message (optional)>\*\*\* - Add a game to the decided list.\n` +
-      `\*\*!addConsidering\*\* \*\*\*<game_id> <message (optional)>\*\*\* - Add a game to the considering list.\n` +
-      `\*\*!removegame\*\* \*\*\*<game_id>\*\*\* - Remove a game from the watch list.\n` +
-      `\*\*!listgames\*\* - List all games being watched.\n` +
-      `\*\*!updateMessageId\*\* \*\*\*<type> <message_id>\*\*\* - Message that hold latest information\n` +
-      `\*\*!checkdiscounts\*\* - Check for discounts on all watched games.`;
+      `\*\*!addBought\*\* \*\*\*<game_id> <message (optional)>\*\*\* - Add a game to the bought list. Message is optional.\n` +
+      `\*\*!addDecided\*\* \*\*\*<game_id> <message (optional)>\*\*\* - Add a game to the decided list. Message is optional.\n` +
+      `\*\*!addConsidering\*\* \*\*\*<game_id> <message (optional)>\*\*\* - Add a game to the considering list. Message is optional.\n` +
+      `\*\*!removeGame\*\* \*\*\*<game_id>\*\*\* - Remove a game from the list.\n` +
+      `\*\*!listGames\*\* - Display instructions to set up the message to hold the game list.\n` +
+      `\*\*!setMessageId\*\* \*\*\*<type> <message_id>\*\*\* - Set the message to hold the latest information for the list of a specified type. (type: bought, decided, considering, discount)\n` +
+      `\*\*!checkDiscounts\*\* - Trigger a check for discounts on the games in the list.`;
     message.channel.send(helpText);
   };
 
@@ -432,7 +432,7 @@ client.on('messageCreate', async message => {
       const messageId = checkMessageId(type);
       const successMessage = messageId
         ? `${messageText}. Check pinned message for the list of games being watched.`
-        : `Game added to the watch list. Please set the message id using !updateMessageId ${type} <message_id> command to get updates in a pinned message.`;
+        : `Game added to the watch list. Please set the message id using !setMessageId ${type} <message_id> command to get updates in a pinned message.`;
       message.channel.send(successMessage);
     } else {
       message.channel.send(`${messageText}.`);
@@ -452,13 +452,13 @@ client.on('messageCreate', async message => {
   };
 
   const handleListGames = () => {
-    const listMessage = 'You can use this message as the base for the list of games being watched. Please use the !updateMessageId command to set this message as the one to be updated with the latest information.';
+    const listMessage = 'You can use this message as the base for the list of games being watched. Please use the !setMessageId <type> <message_id> command to set this message as the one to be updated with the latest information.';
     message.channel.send(listMessage);
   };
 
-  const handleUpdateMessageId = () => {
+  const handleSetMessageId = () => {
     const [command, type, messageId] = message.content.split(' ');
-    const updateSuccess = updateMessageId(type, messageId);
+    const updateSuccess = setMessageId(type, messageId);
 
     if (updateSuccess) {
       message.channel.send(`Message ID updated to ${messageId}. Future updates will be posted in this message.`);
@@ -473,7 +473,7 @@ client.on('messageCreate', async message => {
     if (messageId) {
       message.channel.send(`Discounts checked. Check pinned message for the list of games with discounts.`);
     } else {
-      message.channel.send(`Discounts checked. No message set to display the list of games with discounts. Please use the !updateMessageId discount <message_id> command to set a message.`);
+      message.channel.send(`Discounts checked. No message set to display the list of games with discounts. Please use the !setMessageId discount <message_id> command to set a message.`);
     }
   };
 
@@ -485,13 +485,13 @@ client.on('messageCreate', async message => {
     handleAddGame('decided');
   } else if (message.content.startsWith('!addConsidering ')) {
     handleAddGame('considering');
-  } else if (message.content.startsWith('!removegame ')) {
+  } else if (message.content.startsWith('!removeGame ')) {
     handleRemoveGame();
-  } else if (message.content === '!listgames') {
+  } else if (message.content === '!listGames') {
     handleListGames();
-  } else if (message.content.startsWith('!updateMessageId')) {
-    handleUpdateMessageId();
-  } else if (message.content === '!checkdiscounts') {
+  } else if (message.content.startsWith('!setMessageId')) {
+    handleSetMessageId();
+  } else if (message.content === '!checkDiscounts') {
     handleCheckDiscounts();
   }
 });
