@@ -67,7 +67,7 @@ async function checkForDiscounts() {
   const consideringList = data.find(list => list.name === "considering");
   const boughtList = data.find(list => list.name === "bought");
 
-  boughtList.list.forEach(async (item) => {
+  await Promise.all(boughtList.list.map(async (item) => {
     try {
       const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${item.id}`);
       const gameData = response.data[item.id].data;
@@ -88,9 +88,9 @@ async function checkForDiscounts() {
     } catch (error) {
       console.error(`Error checking for discount on game ID ${item.id}:`, error);
     }
-  });
+  }));
 
-  decidedList.list.forEach(async (item) => {
+  await Promise.all(decidedList.list.map(async (item) => {
     try {
       const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${item.id}`);
       const gameData = response.data[item.id].data;
@@ -103,12 +103,13 @@ async function checkForDiscounts() {
         const currentPrice = gameData.price_overview?.final || 0;
         const currency = gameData.price_overview?.currency || 'undefined';
         item.name = gameData.name;
-        item.discountPercent = discountPercent;
         item.url = url;
         item.coming_soon = coming_soon;
         item.early_access = early_access;
 
         if (discountPercent > 0 && item.discountPercent !== discountPercent) {
+          console.log('Discount found on game:', item.id, item.name, discountPercent);
+          item.discountPercent = discountPercent;
           const discountMessage = `The game ${name} is now on sale with a ${discountPercent}% discount! Current price: ${currentPrice / 100} ${currency}.`;
           const guild = client.guilds.cache.get(GUILD_ID);
           if (guild) {
@@ -117,14 +118,16 @@ async function checkForDiscounts() {
               channel.send(discountMessage);
             }
           }
+        } else  {
+          item.discountPercent = discountPercent;
         }
       }
     } catch (error) {
       console.error(`Error checking for discount on game ID ${item.id}:`, error);
     }
-  });
+  }));
 
-  consideringList.list.forEach(async (item) => {
+  await Promise.all(consideringList.list.map(async (item) => {
     try {
       const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${item.id}`);
       const gameData = response.data[item.id].data;
@@ -137,12 +140,13 @@ async function checkForDiscounts() {
         const currentPrice = gameData.price_overview?.final || 0;
         const currency = gameData.price_overview?.currency || 'undefined';
         item.name = gameData.name;
-        item.discountPercent = discountPercent;
         item.url = url;
         item.coming_soon = coming_soon;
         item.early_access = early_access;
 
         if (discountPercent > 0 && item.discountPercent !== discountPercent) {
+          console.log('Discount found on game:', item.id, item.name, discountPercent);
+          item.discountPercent = discountPercent;
           const discountMessage = `The game ${name} is now on sale with a ${discountPercent}% discount! Current price: ${currentPrice / 100} ${currency}.`;
           const guild = client.guilds.cache.get(GUILD_ID);
           if (guild) {
@@ -151,29 +155,31 @@ async function checkForDiscounts() {
               channel.send(discountMessage);
             }
           }
+        } else  {
+          item.discountPercent = discountPercent;
         }
       }
     } catch (error) {
       console.error(`Error checking for discount on game ID ${item.id}:`, error);
     }
-  });
+  }));
 
   saveGames(data);
-  const discountMessageId = checkMessageId('discount');
   const boughtMessageId = checkMessageId('bought');
-  const decidedMessageId = checkMessageId('decided');
-  const consideringMessageId = checkMessageId('considering');
-  if (discountMessageId) {
-    updateOriginalMessage('discount', discountMessageId);
-  }
   if (boughtMessageId) {
     updateOriginalMessage('bought', boughtMessageId);
   }
+  const decidedMessageId = checkMessageId('decided');
   if (decidedMessageId) {
     updateOriginalMessage('decided', decidedMessageId);
   }
+  const consideringMessageId = checkMessageId('considering');
   if (consideringMessageId) {
     updateOriginalMessage('considering', consideringMessageId);
+  }
+  const discountMessageId = checkMessageId('discount');
+  if (discountMessageId) {
+    updateOriginalMessage('discount', discountMessageId);
   }
 }
 
