@@ -216,6 +216,8 @@ async function addGame(type, gameId, description) {
           boughtList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description });
         }
 
+        saveGames(data);
+
         if (discountPercent > 0) {
           const discountMessage = `The game ${name} is now on sale with a ${discountPercent}% discount! Current price: ${currentPrice / 100} ${currency}.`;
           const guild = client.guilds.cache.get(GUILD_ID);
@@ -225,9 +227,12 @@ async function addGame(type, gameId, description) {
               channel.send(discountMessage);
             }
           }
+          const discountMessageId = checkMessageId('discount');
+          if (discountMessageId) {
+            updateOriginalMessage('discount', discountMessageId);
+          }
         }
 
-        saveGames(data);
         const messageId = checkMessageId(type);
         if (messageId) {
           updateOriginalMessage(type, messageId);
@@ -257,7 +262,7 @@ async function addGame(type, gameId, description) {
         consideringList.list.push(game);
         messageText = 'Game transferred from bought to considering';
       }
-    } else if (type === "bought") {
+    } else if (gameIndex !== -1 && type === "bought") {
       if (description != '') {
         boughtList.list[gameIndex].description = description;
       }
@@ -276,7 +281,7 @@ async function addGame(type, gameId, description) {
         boughtList.list.push(game);
         messageText = 'Game transferred from considering to bought';
       }
-    } else if (type === "considering") {
+    } else if (gameIndex !== -1 && type === "considering") {
       if (description != '') {
         consideringList.list[gameIndex].description = description;
       }
@@ -295,16 +300,24 @@ async function addGame(type, gameId, description) {
         boughtList.list.push(game);
         messageText = 'Game transferred from decided to bought';
       }
-    } else if (type === "decided") {
+    } else if (gameIndex !== -1 && type === "decided") {
       if (description != '') {
         decidedList.list[gameIndex].description = description;
       }
     }
 
     saveGames(data);
-    const messageId = checkMessageId(type);
-    if (messageId) {
-      updateOriginalMessage(type, messageId);
+    const boughtMessageId = checkMessageId('bought');
+    if (boughtMessageId) {
+      updateOriginalMessage('bought', boughtMessageId);
+    }
+    const decidedMessageId = checkMessageId('decided');
+    if (decidedMessageId) {
+      updateOriginalMessage('decided', decidedMessageId);
+    }
+    const consideringMessageId = checkMessageId('considering');
+    if (consideringMessageId) {
+      updateOriginalMessage('considering', consideringMessageId);
     }
     return JSON.stringify({ status: 'success', messageText });
   }
