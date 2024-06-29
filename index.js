@@ -77,14 +77,14 @@ async function checkForDiscounts() {
         const coming_soon = gameData.release_date?.coming_soon || false;
         const early_access = gameData.genres?.filter(genre => genre.id === "70").length > 0 || false;
         const url = `https://store.steampowered.com/app/${item.id}/`;
-        const currentPrice = gameData.price_overview?.final || 0;
+        const currentPrice = (gameData.price_overview?.final || 0) / 100;
         const currency = gameData.price_overview?.currency || 'undefined';
         item.name = gameData.name;
         item.discountPercent = discountPercent;
         item.url = url;
         item.coming_soon = coming_soon;
         item.early_access = early_access;
-        item.currentPrice = currentPrice / 100;
+        item.currentPrice = currentPrice;
         item.currency = currency;
       }
     } catch (error) {
@@ -102,19 +102,19 @@ async function checkForDiscounts() {
         const coming_soon = gameData.release_date?.coming_soon || false;
         const early_access = gameData.genres?.filter(genre => genre.id === "70").length > 0 || false;
         const url = `https://store.steampowered.com/app/${item.id}/`;
-        const currentPrice = gameData.price_overview?.final || 0;
+        const currentPrice = (gameData.price_overview?.final || 0) / 100;
         const currency = gameData.price_overview?.currency || 'undefined';
         item.name = gameData.name;
         item.url = url;
         item.coming_soon = coming_soon;
         item.early_access = early_access;
-        item.currentPrice = currentPrice / 100;
+        item.currentPrice = currentPrice;
         item.currency = currency;
 
         if (discountPercent > 0 && item.discountPercent !== discountPercent) {
           console.log('Discount found on game:', item.id, item.name, discountPercent);
           item.discountPercent = discountPercent;
-          const discountMessage = `The game ${name} is now on sale with a ${discountPercent}% discount! Current price: ${currentPrice / 100} ${currency}.`;
+          const discountMessage = `The game ${name} is now on sale with a ${discountPercent}% discount! Current price: ${currentPrice} ${currency}.`;
           const guild = client.guilds.cache.get(GUILD_ID);
           if (guild) {
             const channel = guild.channels.cache.get(CHANNEL_ID);
@@ -141,19 +141,19 @@ async function checkForDiscounts() {
         const coming_soon = gameData.release_date?.coming_soon || false;
         const early_access = gameData.genres?.filter(genre => genre.id === "70").length > 0 || false;
         const url = `https://store.steampowered.com/app/${item.id}/`;
-        const currentPrice = gameData.price_overview?.final || 0;
+        const currentPrice = (gameData.price_overview?.final || 0) / 100;
         const currency = gameData.price_overview?.currency || 'undefined';
         item.name = gameData.name;
         item.url = url;
         item.coming_soon = coming_soon;
         item.early_access = early_access;
-        item.currentPrice = currentPrice / 100;
+        item.currentPrice = currentPrice;
         item.currency = currency;
 
         if (discountPercent > 0 && item.discountPercent !== discountPercent) {
           console.log('Discount found on game:', item.id, item.name, discountPercent);
           item.discountPercent = discountPercent;
-          const discountMessage = `The game ${name} is now on sale with a ${discountPercent}% discount! Current price: ${currentPrice / 100} ${currency}.`;
+          const discountMessage = `The game ${name} is now on sale with a ${discountPercent}% discount! Current price: ${currentPrice} ${currency}.`;
           const guild = client.guilds.cache.get(GUILD_ID);
           if (guild) {
             const channel = guild.channels.cache.get(CHANNEL_ID);
@@ -212,20 +212,20 @@ async function addGame(type, gameId, description) {
         const coming_soon = gameData.release_date?.coming_soon || false;
         const early_access = gameData.genres?.filter(genre => genre.id === "70").length > 0 || false;
         const url = `https://store.steampowered.com/app/${gameId}/`;
-        const currentPrice = gameData.price_overview?.final || 0;
+        const currentPrice = (gameData.price_overview?.final || 0) / 100;
         const currency = gameData.price_overview?.currency || 'undefined';
         if (type === "decided") {
-          decidedList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description, currentPrice / 100, currency });
+          decidedList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description, currentPrice, currency });
         } else if (type === "considering") {
-          consideringList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description, currentPrice / 100, currency });
+          consideringList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description, currentPrice, currency });
         } else if (type === "bought") {
-          boughtList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description, currentPrice / 100, currency });
+          boughtList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description, currentPrice, currency });
         }
 
         saveGames(data);
 
         if (discountPercent > 0) {
-          const discountMessage = `The game ${name} is now on sale with a ${discountPercent}% discount! Current price: ${currentPrice / 100} ${currency}.`;
+          const discountMessage = `The game ${name} is now on sale with a ${discountPercent}% discount! Current price: ${currentPrice} ${currency}.`;
           const guild = client.guilds.cache.get(GUILD_ID);
           if (guild) {
             const channel = guild.channels.cache.get(CHANNEL_ID);
@@ -407,7 +407,7 @@ async function updateOriginalMessage(type, messageId) {
       header += `${item.name} ${item.description ? item.description : ''}${item.coming_soon ? ` \`Coming Soon\`` : ''}${item.early_access ? ` \`Early Access\`` : ''}\n${item.url}\n`;
     } else {
       if (item.discountPercent > 0) {
-        header += `${item.name} (${item.currentPrice} ${item.currency}) \`${item.discountPercent}% OFF\` \n${item.url}\n`;
+        header += `${item.name} \`${item.discountPercent}% OFF\` \`${item.currentPrice} ${item.currency}\` \n${item.url}\n`;
       }
     }
   });
