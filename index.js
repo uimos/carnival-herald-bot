@@ -84,7 +84,7 @@ async function checkForDiscounts() {
         item.url = url;
         item.coming_soon = coming_soon;
         item.early_access = early_access;
-        item.currentPrice = currentPrice;
+        item.currentPrice = currentPrice / 100;
         item.currency = currency;
       }
     } catch (error) {
@@ -108,7 +108,7 @@ async function checkForDiscounts() {
         item.url = url;
         item.coming_soon = coming_soon;
         item.early_access = early_access;
-        item.currentPrice = currentPrice;
+        item.currentPrice = currentPrice / 100;
         item.currency = currency;
 
         if (discountPercent > 0 && item.discountPercent !== discountPercent) {
@@ -147,7 +147,7 @@ async function checkForDiscounts() {
         item.url = url;
         item.coming_soon = coming_soon;
         item.early_access = early_access;
-        item.currentPrice = currentPrice;
+        item.currentPrice = currentPrice / 100;
         item.currency = currency;
 
         if (discountPercent > 0 && item.discountPercent !== discountPercent) {
@@ -215,11 +215,11 @@ async function addGame(type, gameId, description) {
         const currentPrice = gameData.price_overview?.final || 0;
         const currency = gameData.price_overview?.currency || 'undefined';
         if (type === "decided") {
-          decidedList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description, currentPrice, currency });
+          decidedList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description, currentPrice / 100, currency });
         } else if (type === "considering") {
-          consideringList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description, currentPrice, currency });
+          consideringList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description, currentPrice / 100, currency });
         } else if (type === "bought") {
-          boughtList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description, currentPrice, currency });
+          boughtList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description, currentPrice / 100, currency });
         }
 
         saveGames(data);
