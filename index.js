@@ -376,11 +376,13 @@ async function updateOriginalMessage(type, messageId) {
   const data = loadGames();
 
   let dataList = [];
+  let decidedList = [];
+  let consideringList = [];
   if (type !== 'discount') {
     dataList = data.find(list => list.name === type).list;
   } else {
-    dataList = data.filter(list => list.name === 'decided' || list.name === 'considering')
-      .flatMap(list => list.list);
+    decidedList = data.find(list => list.name === 'decided').list;
+    consideringList = data.find(list => list.name === 'considering').list;
   }
   let header = '';
 
@@ -394,23 +396,41 @@ async function updateOriginalMessage(type, messageId) {
     header = '\*\*==DISCOUNT NOW==\*\*\n';
   }
 
-  dataList.sort((a, b) => {
+  const sortByAttributes = (a, b) => {
     if (a.coming_soon && !b.coming_soon) return 1;
     if (!a.coming_soon && b.coming_soon) return -1;
     if (a.early_access && !b.early_access) return 1;
     if (!a.early_access && b.early_access) return -1;
     return 0;
-  });
+  };
 
-  dataList.forEach(item => {
-    if (type !== 'discount') {
-      header += `${item.name} ${item.description ? item.description : ''}${item.coming_soon ? ` \`Coming Soon\`` : ''}${item.early_access ? ` \`Early Access\`` : ''}\n${item.url}\n`;
-    } else {
-      if (item.discountPercent > 0) {
+  if (type !== 'discount') {
+    dataList.sort(sortByAttributes);
+  } else {
+    decidedList = decidedList.filter(item => item.discountPercent > 0).sort(sortByAttributes);
+    consideringList = consideringList.filter(item => item.discountPercent > 0).sort(sortByAttributes);
+  }
+
+  if (type === 'discount') {
+    if (decidedList.length > 0) {
+      header += '**Decided**\n';
+      decidedList.forEach(item => {
         header += `${item.name} \`${item.discountPercent}% OFF\` \`${item.currentPrice} ${item.currency}\` \n${item.url}\n`;
-      }
+      });
+      header += '\n';
     }
-  });
+  
+    if (consideringList.length > 0) {
+      header += '**Considering**\n';
+      consideringList.forEach(item => {
+        header += `${item.name} \`${item.discountPercent}% OFF\` \`${item.currentPrice} ${item.currency}\` \n${item.url}\n`;
+      });
+    }
+  } else {
+    dataList.forEach(item => {
+      header += `${item.name} ${item.description ? item.description : ''}${item.coming_soon ? ` \`Coming Soon\`` : ''}${item.early_access ? ` \`Early Access\`` : ''}\n${item.url}\n`;
+    });
+  }
 
   const guild = client.guilds.cache.get(GUILD_ID);
   if (guild) {
