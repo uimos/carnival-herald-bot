@@ -69,7 +69,7 @@ async function checkForDiscounts() {
 
   await Promise.all(boughtList.list.map(async (item) => {
     try {
-      const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${item.id}`);
+      const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${item.id}&cc=my`);
       const gameData = response.data[item.id].data;
       if (gameData) {
         const discountPercent = gameData.price_overview?.discount_percent || 0;
@@ -84,6 +84,8 @@ async function checkForDiscounts() {
         item.url = url;
         item.coming_soon = coming_soon;
         item.early_access = early_access;
+        item.currentPrice = currentPrice;
+        item.currency = currency;
       }
     } catch (error) {
       console.error(`Error checking for discount on game ID ${item.id}:`, error);
@@ -92,7 +94,7 @@ async function checkForDiscounts() {
 
   await Promise.all(decidedList.list.map(async (item) => {
     try {
-      const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${item.id}`);
+      const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${item.id}&cc=my`);
       const gameData = response.data[item.id].data;
       if (gameData) {
         const discountPercent = gameData.price_overview?.discount_percent || 0;
@@ -106,6 +108,8 @@ async function checkForDiscounts() {
         item.url = url;
         item.coming_soon = coming_soon;
         item.early_access = early_access;
+        item.currentPrice = currentPrice;
+        item.currency = currency;
 
         if (discountPercent > 0 && item.discountPercent !== discountPercent) {
           console.log('Discount found on game:', item.id, item.name, discountPercent);
@@ -129,7 +133,7 @@ async function checkForDiscounts() {
 
   await Promise.all(consideringList.list.map(async (item) => {
     try {
-      const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${item.id}`);
+      const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${item.id}&cc=my`);
       const gameData = response.data[item.id].data;
       if (gameData) {
         const discountPercent = gameData.price_overview?.discount_percent || 0;
@@ -143,6 +147,8 @@ async function checkForDiscounts() {
         item.url = url;
         item.coming_soon = coming_soon;
         item.early_access = early_access;
+        item.currentPrice = currentPrice;
+        item.currency = currency;
 
         if (discountPercent > 0 && item.discountPercent !== discountPercent) {
           console.log('Discount found on game:', item.id, item.name, discountPercent);
@@ -198,7 +204,7 @@ async function addGame(type, gameId, description) {
   }, []);
   if (!allGames.find(game => game.id === gameId)) {
     try {
-      const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${gameId}`);
+      const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${gameId}&cc=my`);
       const gameData = response.data[gameId].data;
       if (gameData) {
         const discountPercent = gameData.price_overview?.discount_percent || 0;
@@ -209,11 +215,11 @@ async function addGame(type, gameId, description) {
         const currentPrice = gameData.price_overview?.final || 0;
         const currency = gameData.price_overview?.currency || 'undefined';
         if (type === "decided") {
-          decidedList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description });
+          decidedList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description, currentPrice, currency });
         } else if (type === "considering") {
-          consideringList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description });
+          consideringList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description, currentPrice, currency });
         } else if (type === "bought") {
-          boughtList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description });
+          boughtList.list.push({ id: gameId, name, discountPercent, url, coming_soon, early_access, description, currentPrice, currency });
         }
 
         saveGames(data);
@@ -401,7 +407,7 @@ async function updateOriginalMessage(type, messageId) {
       header += `${item.name} ${item.description ? item.description : ''}${item.coming_soon ? ` \`Coming Soon\`` : ''}${item.early_access ? ` \`Early Access\`` : ''}\n${item.url}\n`;
     } else {
       if (item.discountPercent > 0) {
-        header += `${item.name} ${item.discountPercent}% OFF \n${item.url}\n`;
+        header += `${item.name} (${item.currentPrice} ${item.currency}) \`${item.discountPercent}% OFF\` \n${item.url}\n`;
       }
     }
   });
