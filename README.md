@@ -29,6 +29,33 @@ There are 3 types of list
 
 `!checkDiscounts` - Trigger a check for discounts on the games in the list.
 
+`!cleanupMessages` - Manually trigger cleanup of old temporary messages.
+
+`!messageStats` - Show statistics about temporary messages.
+
+## New Features
+
+### Automatic Message Cleanup
+The bot now automatically stores and deletes temporary messages after 30 days to keep your Discord channel clean. This includes:
+- Discount notifications
+- Command confirmation messages
+- Error messages
+- Status updates
+
+### Configuration
+You can adjust the message retention period by modifying the `MESSAGE_RETENTION_DAYS` constant in `index.js`:
+- Default: 30 days
+- For 7 days: Change to `7`
+- For 1 day: Change to `1`
+
+### Files Created
+- `temp_messages.json` - Stores temporary message IDs and deletion timestamps
+
+### Cleanup Schedule
+- Automatic cleanup runs every day
+- Manual cleanup can be triggered with `!cleanupMessages`
+- Cleanup runs on bot startup to handle any messages that should have been deleted while the bot was offline
+
 ## Installation
 Create .env file to store your config.
 ```

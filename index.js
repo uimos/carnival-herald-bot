@@ -14,6 +14,17 @@ const CHANNEL_ID = process.env.CHANNEL_ID || '';
 
 const GAMES_FILE_PATH = path.join(__dirname, 'games.json');
 const SETTING_FILE_PATH = path.join(__dirname, 'setting.json');
+const TEMP_MESSAGES_FILE_PATH = path.join(__dirname, 'temp_messages.json');
+
+// Configuration: You can change this value to adjust how long messages are kept
+// Examples:
+// - 7 days: 7 * 24 * 60 * 60 * 1000
+// - 1 day: 24 * 60 * 60 * 1000
+// - 1 hour: 60 * 60 * 1000
+const MESSAGE_RETENTION_DAYS = 30;
+
+// Delete messages after configured days (in milliseconds)
+const MESSAGE_DELETE_INTERVAL = MESSAGE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
 function loadGames() {
   try {
@@ -119,7 +130,7 @@ async function checkForDiscounts() {
           if (guild) {
             const channel = guild.channels.cache.get(CHANNEL_ID);
             if (channel) {
-              channel.send(discountMessage);
+              sendTempMessage(channel, discountMessage);
             }
           }
         } else  {
@@ -158,7 +169,7 @@ async function checkForDiscounts() {
           if (guild) {
             const channel = guild.channels.cache.get(CHANNEL_ID);
             if (channel) {
-              channel.send(discountMessage);
+              sendTempMessage(channel, discountMessage);
             }
           }
         } else  {
@@ -190,6 +201,8 @@ async function checkForDiscounts() {
 }
 
 setInterval(checkForDiscounts, CHECK_INTERVAL);
+// Clean up old messages every hour
+setInterval(cleanupOldMessages, 60 * 60 * 1000);
 
 async function addGame(type, gameId, description) {
   if (isNaN(gameId)) {
@@ -230,7 +243,7 @@ async function addGame(type, gameId, description) {
           if (guild) {
             const channel = guild.channels.cache.get(CHANNEL_ID);
             if (channel) {
-              channel.send(discountMessage);
+              sendTempMessage(channel, discountMessage);
             }
           }
           const discountMessageId = checkMessageId('discount');
@@ -441,7 +454,7 @@ async function updateOriginalMessage(type, messageId) {
         if (`${header}`.length < 2000) {
           message.edit(`${header}`);
         } else {
-          channel.send('List is too long to be displayed in a single message. Please consider removing some games or splitting the list into multiple messages.');
+          sendTempMessage(channel, 'List is too long to be displayed in a single message. Please consider removing some games or splitting the list into multiple messages.');
         }
       }
     }
@@ -452,6 +465,7 @@ client.login(BOT_TOKEN);
 
 client.once('ready', () => {
   console.log('Ready to check for discounts!');
+  cleanupOldMessages();
   checkForDiscounts();
 });
 
@@ -464,7 +478,9 @@ client.on('messageCreate', async message => {
       `\*\*!removeGame\*\* \*\*\*<game_id>\*\*\* - Remove a game from the list.\n` +
       `\*\*!listGames\*\* - Display instructions to set up the message to hold the game list.\n` +
       `\*\*!setMessageId\*\* \*\*\*<type> <message_id>\*\*\* - Set the message to hold the latest information for the list of a specified type. (type: bought, decided, considering, discount)\n` +
-      `\*\*!checkDiscounts\*\* - Trigger a check for discounts on the games in the list.`;
+      `\*\*!checkDiscounts\*\* - Trigger a check for discounts on the games in the list.\n` +
+      `\*\*!cleanupMessages\*\* - Manually trigger cleanup of old temporary messages.\n` +
+      `\*\*!messageStats\*\* - Show statistics about temporary messages.`;
     message.channel.send(helpText);
   };
 
@@ -478,9 +494,9 @@ client.on('messageCreate', async message => {
       const successMessage = messageId
         ? `${messageText}. Check pinned message for the list of games being watched.`
         : `Game added to the watch list. Please set the message id using !setMessageId ${type} <message_id> command to get updates in a pinned message.`;
-      message.channel.send(successMessage);
+      sendTempMessage(message.channel, successMessage);
     } else {
-      message.channel.send(`${messageText}.`);
+      sendTempMessage(message.channel, `${messageText}.`);
     }
   };
 
@@ -490,9 +506,9 @@ client.on('messageCreate', async message => {
 
     if (status === 'success') {
       const successMessage = `Game removed from the watch list.`;
-      message.channel.send(successMessage);
+      sendTempMessage(message.channel, successMessage);
     } else {
-      message.channel.send(`${messageText}.`);
+      sendTempMessage(message.channel, `${messageText}.`);
     }
   };
 
@@ -506,9 +522,9 @@ client.on('messageCreate', async message => {
     const updateSuccess = setMessageId(type, messageId);
 
     if (updateSuccess) {
-      message.channel.send(`Message ID updated to ${messageId}. Future updates will be posted in this message.`);
+      sendTempMessage(message.channel, `Message ID updated to ${messageId}. Future updates will be posted in this message.`);
     } else {
-      message.channel.send('Error updating message ID. Please try again.');
+      sendTempMessage(message.channel, 'Error updating message ID. Please try again.');
     }
   };
 
@@ -516,9 +532,9 @@ client.on('messageCreate', async message => {
     checkForDiscounts();
     const messageId = checkMessageId('discount');
     if (messageId) {
-      message.channel.send(`Discounts checked. Check pinned message for the list of games with discounts.`);
+      sendTempMessage(message.channel, `Discounts checked. Check pinned message for the list of games with discounts.`);
     } else {
-      message.channel.send(`Discounts checked. No message set to display the list of games with discounts. Please use the !setMessageId discount <message_id> command to set a message.`);
+      sendTempMessage(message.channel, `Discounts checked. No message set to display the list of games with discounts. Please use the !setMessageId discount <message_id> command to set a message.`);
     }
   };
 
@@ -538,5 +554,97 @@ client.on('messageCreate', async message => {
     handleSetMessageId();
   } else if (message.content === '!checkDiscounts') {
     handleCheckDiscounts();
+  } else if (message.content === '!cleanupMessages') {
+    cleanupOldMessages();
+    sendTempMessage(message.channel, 'Old temporary messages have been cleaned up.');
+  } else if (message.content === '!messageStats') {
+    const stats = getTempMessageStats();
+    const statsMessage = `**Temporary Message Statistics:**\n` +
+      `Total messages: ${stats.total}\n` +
+      `Pending deletion: ${stats.pending}\n` +
+      `Expired (ready for cleanup): ${stats.expired}\n` +
+      `Oldest message: ${stats.oldestMessage}\n` +
+      `Newest message: ${stats.newestMessage}`;
+    sendTempMessage(message.channel, statsMessage);
   }
 });
+
+function loadTempMessages() {
+  try {
+    const data = fs.readFileSync(TEMP_MESSAGES_FILE_PATH);
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Error reading temp messages file:', error);
+    return [];
+  }
+}
+
+function saveTempMessages(messages) {
+  try {
+    fs.writeFileSync(TEMP_MESSAGES_FILE_PATH, JSON.stringify(messages, null, 2));
+  } catch (error) {
+    console.error('Error writing temp messages file:', error);
+  }
+}
+
+function storeTempMessage(messageId, channelId, timestamp = Date.now()) {
+  const tempMessages = loadTempMessages();
+  tempMessages.push({
+    messageId,
+    channelId,
+    timestamp,
+    deleteAt: timestamp + MESSAGE_DELETE_INTERVAL
+  });
+  saveTempMessages(tempMessages);
+}
+
+async function cleanupOldMessages() {
+  console.log('Cleaning up old messages...');
+  const tempMessages = loadTempMessages();
+  const now = Date.now();
+  const messagesToDelete = tempMessages.filter(msg => now >= msg.deleteAt);
+  
+  for (const msg of messagesToDelete) {
+    try {
+      const guild = client.guilds.cache.get(GUILD_ID);
+      if (guild) {
+        const channel = guild.channels.cache.get(msg.channelId);
+        if (channel) {
+          const message = await channel.messages.fetch(msg.messageId);
+          if (message) {
+            await message.delete();
+            console.log(`Deleted message ${msg.messageId} from channel ${msg.channelId}`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`Error deleting message ${msg.messageId}:`, error);
+    }
+  }
+  
+  // Remove deleted messages from the temp messages array
+  const remainingMessages = tempMessages.filter(msg => now < msg.deleteAt);
+  saveTempMessages(remainingMessages);
+}
+
+async function sendTempMessage(channel, content) {
+  const message = await channel.send(content);
+  storeTempMessage(message.id, channel.id);
+  return message;
+}
+
+function getTempMessageStats() {
+  const tempMessages = loadTempMessages();
+  const now = Date.now();
+  const total = tempMessages.length;
+  const pending = tempMessages.filter(msg => now < msg.deleteAt).length;
+  const expired = tempMessages.filter(msg => now >= msg.deleteAt).length;
+  
+  return {
+    total,
+    pending,
+    expired,
+    oldestMessage: tempMessages.length > 0 ? new Date(Math.min(...tempMessages.map(msg => msg.timestamp))).toLocaleDateString() : 'None',
+    newestMessage: tempMessages.length > 0 ? new Date(Math.max(...tempMessages.map(msg => msg.timestamp))).toLocaleDateString() : 'None'
+  };
+}
