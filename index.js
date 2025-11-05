@@ -21,7 +21,7 @@ const TEMP_MESSAGES_FILE_PATH = path.join(__dirname, 'temp_messages.json');
 // - 7 days: 7 * 24 * 60 * 60 * 1000
 // - 1 day: 24 * 60 * 60 * 1000
 // - 1 hour: 60 * 60 * 1000
-const MESSAGE_RETENTION_DAYS = 30;
+const MESSAGE_RETENTION_DAYS = 14;
 
 // Delete messages after configured days (in milliseconds)
 const MESSAGE_DELETE_INTERVAL = MESSAGE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
@@ -463,7 +463,7 @@ async function updateOriginalMessage(type, messageId) {
 
 client.login(BOT_TOKEN);
 
-client.once('ready', () => {
+client.once('clientReady', () => {
   console.log('Ready to check for discounts!');
   cleanupOldMessages();
   checkForDiscounts();
