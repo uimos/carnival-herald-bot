@@ -15,6 +15,9 @@ const CHANNEL_ID = process.env.CHANNEL_ID || '';
 const GAMES_FILE_PATH = path.join(__dirname, 'games.json');
 const SETTING_FILE_PATH = path.join(__dirname, 'setting.json');
 const TEMP_MESSAGES_FILE_PATH = path.join(__dirname, 'temp_messages.json');
+const VALID_LIST_TYPES = new Set(['bought', 'decided', 'considering', 'discount']);
+
+let isDiscountCheckRunning = false;
 
 // Configuration: You can change this value to adjust how long messages are kept
 // Examples:
@@ -25,6 +28,24 @@ const MESSAGE_RETENTION_DAYS = 14;
 
 // Delete messages after configured days (in milliseconds)
 const MESSAGE_DELETE_INTERVAL = MESSAGE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+function extractGameId(value) {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = String(value).trim();
+  if (/^\d+$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  const appIdMatch = trimmed.match(/\/app\/(\d+)/i);
+  if (appIdMatch) {
+    return appIdMatch[1];
+  }
+
+  return null;
+}
 
 function loadGames() {
   try {
@@ -46,12 +67,21 @@ function saveGames(games) {
 
 function setMessageId(type, messageId) {
   try {
+    if (!VALID_LIST_TYPES.has(type) || !messageId) {
+      return false;
+    }
+
     const data = fs.readFileSync(SETTING_FILE_PATH);
     const list = JSON.parse(data);
     const messageType = list.find(item => item.name === type);
+    if (!messageType) {
+      return false;
+    }
     messageType.messageId = messageId;
     fs.writeFileSync(SETTING_FILE_PATH, JSON.stringify(list, null, 2));
-    updateOriginalMessage(type, messageId);
+    updateOriginalMessage(type, messageId).catch(error => {
+      console.error('Error updating original message after setting message ID:', error);
+    });
     return true;
   } catch (error) {
     console.error('Error writing message id file:', error);
@@ -61,9 +91,16 @@ function setMessageId(type, messageId) {
 
 function checkMessageId(type) {
   try {
+    if (!VALID_LIST_TYPES.has(type)) {
+      return false;
+    }
+
     const data = fs.readFileSync(SETTING_FILE_PATH);
     const list = JSON.parse(data);
     const messageType = list.find(item => item.name === type);
+    if (!messageType) {
+      return false;
+    }
     return messageType.messageId ? messageType.messageId : false;
   } catch (error) {
     console.error('Error reading message id file:', error);
@@ -72,131 +109,146 @@ function checkMessageId(type) {
 }
 
 async function checkForDiscounts() {
+  if (isDiscountCheckRunning) {
+    console.log('Discount check skipped because another check is already running.');
+    return;
+  }
+
+  isDiscountCheckRunning = true;
   console.log('Checking for discounts...');
-  const data = loadGames();
-  const decidedList = data.find(list => list.name === "decided");
-  const consideringList = data.find(list => list.name === "considering");
-  const boughtList = data.find(list => list.name === "bought");
+  try {
+    const data = loadGames();
+    const decidedList = data.find(list => list.name === "decided");
+    const consideringList = data.find(list => list.name === "considering");
+    const boughtList = data.find(list => list.name === "bought");
 
-  await Promise.all(boughtList.list.map(async (item) => {
-    try {
-      const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${item.id}&cc=my`);
-      const gameData = response.data[item.id].data;
-      if (gameData) {
-        const discountPercent = gameData.price_overview?.discount_percent || 0;
-        const name = gameData.name;
-        const coming_soon = gameData.release_date?.coming_soon || false;
-        const early_access = gameData.genres?.filter(genre => genre.id === "70").length > 0 || false;
-        const url = `https://store.steampowered.com/app/${item.id}/`;
-        const currentPrice = (gameData.price_overview?.final || 0) / 100;
-        const currency = gameData.price_overview?.currency || 'undefined';
-        item.name = gameData.name;
-        item.discountPercent = discountPercent;
-        item.url = url;
-        item.coming_soon = coming_soon;
-        item.early_access = early_access;
-        item.currentPrice = currentPrice;
-        item.currency = currency;
-      }
-    } catch (error) {
-      console.error(`Error checking for discount on game ID ${item.id}:`, error);
+    if (!decidedList || !consideringList || !boughtList) {
+      console.error('Invalid games.json format. Expected bought/decided/considering lists.');
+      return;
     }
-  }));
 
-  await Promise.all(decidedList.list.map(async (item) => {
-    try {
-      const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${item.id}&cc=my`);
-      const gameData = response.data[item.id].data;
-      if (gameData) {
-        const discountPercent = gameData.price_overview?.discount_percent || 0;
-        const name = gameData.name;
-        const coming_soon = gameData.release_date?.coming_soon || false;
-        const early_access = gameData.genres?.filter(genre => genre.id === "70").length > 0 || false;
-        const url = `https://store.steampowered.com/app/${item.id}/`;
-        const currentPrice = (gameData.price_overview?.final || 0) / 100;
-        const currency = gameData.price_overview?.currency || 'undefined';
-        item.name = gameData.name;
-        item.url = url;
-        item.coming_soon = coming_soon;
-        item.early_access = early_access;
-        item.currentPrice = currentPrice;
-        item.currency = currency;
-
-        if (discountPercent > 0 && item.discountPercent !== discountPercent) {
-          console.log('Discount found on game:', item.id, item.name, discountPercent);
+    await Promise.all(boughtList.list.map(async (item) => {
+      try {
+        const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${item.id}&cc=my`);
+        const gameData = response.data[item.id].data;
+        if (gameData) {
+          const discountPercent = gameData.price_overview?.discount_percent || 0;
+          const name = gameData.name;
+          const coming_soon = gameData.release_date?.coming_soon || false;
+          const early_access = gameData.genres?.filter(genre => genre.id === "70").length > 0 || false;
+          const url = `https://store.steampowered.com/app/${item.id}/`;
+          const currentPrice = (gameData.price_overview?.final || 0) / 100;
+          const currency = gameData.price_overview?.currency || 'undefined';
+          item.name = gameData.name;
           item.discountPercent = discountPercent;
-          const discountMessage = `The game ${name} is now on sale with a ${discountPercent}% discount! Current price: ${currentPrice} ${currency}.`;
-          const guild = client.guilds.cache.get(GUILD_ID);
-          if (guild) {
-            const channel = guild.channels.cache.get(CHANNEL_ID);
-            if (channel) {
-              sendTempMessage(channel, discountMessage);
-            }
-          }
-        } else  {
-          item.discountPercent = discountPercent;
+          item.url = url;
+          item.coming_soon = coming_soon;
+          item.early_access = early_access;
+          item.currentPrice = currentPrice;
+          item.currency = currency;
         }
+      } catch (error) {
+        console.error(`Error checking for discount on game ID ${item.id}:`, error);
       }
-    } catch (error) {
-      console.error(`Error checking for discount on game ID ${item.id}:`, error);
-    }
-  }));
+    }));
 
-  await Promise.all(consideringList.list.map(async (item) => {
-    try {
-      const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${item.id}&cc=my`);
-      const gameData = response.data[item.id].data;
-      if (gameData) {
-        const discountPercent = gameData.price_overview?.discount_percent || 0;
-        const name = gameData.name;
-        const coming_soon = gameData.release_date?.coming_soon || false;
-        const early_access = gameData.genres?.filter(genre => genre.id === "70").length > 0 || false;
-        const url = `https://store.steampowered.com/app/${item.id}/`;
-        const currentPrice = (gameData.price_overview?.final || 0) / 100;
-        const currency = gameData.price_overview?.currency || 'undefined';
-        item.name = gameData.name;
-        item.url = url;
-        item.coming_soon = coming_soon;
-        item.early_access = early_access;
-        item.currentPrice = currentPrice;
-        item.currency = currency;
+    await Promise.all(decidedList.list.map(async (item) => {
+      try {
+        const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${item.id}&cc=my`);
+        const gameData = response.data[item.id].data;
+        if (gameData) {
+          const discountPercent = gameData.price_overview?.discount_percent || 0;
+          const name = gameData.name;
+          const coming_soon = gameData.release_date?.coming_soon || false;
+          const early_access = gameData.genres?.filter(genre => genre.id === "70").length > 0 || false;
+          const url = `https://store.steampowered.com/app/${item.id}/`;
+          const currentPrice = (gameData.price_overview?.final || 0) / 100;
+          const currency = gameData.price_overview?.currency || 'undefined';
+          item.name = gameData.name;
+          item.url = url;
+          item.coming_soon = coming_soon;
+          item.early_access = early_access;
+          item.currentPrice = currentPrice;
+          item.currency = currency;
 
-        if (discountPercent > 0 && item.discountPercent !== discountPercent) {
-          console.log('Discount found on game:', item.id, item.name, discountPercent);
-          item.discountPercent = discountPercent;
-          const discountMessage = `The game ${name} is now on sale with a ${discountPercent}% discount! Current price: ${currentPrice} ${currency}.`;
-          const guild = client.guilds.cache.get(GUILD_ID);
-          if (guild) {
-            const channel = guild.channels.cache.get(CHANNEL_ID);
-            if (channel) {
-              sendTempMessage(channel, discountMessage);
+          if (discountPercent > 0 && item.discountPercent !== discountPercent) {
+            console.log('Discount found on game:', item.id, item.name, discountPercent);
+            item.discountPercent = discountPercent;
+            const discountMessage = `The game ${name} is now on sale with a ${discountPercent}% discount! Current price: ${currentPrice} ${currency}.`;
+            const guild = client.guilds.cache.get(GUILD_ID);
+            if (guild) {
+              const channel = guild.channels.cache.get(CHANNEL_ID);
+              if (channel) {
+                await sendTempMessage(channel, discountMessage);
+              }
             }
+          } else  {
+            item.discountPercent = discountPercent;
           }
-        } else  {
-          item.discountPercent = discountPercent;
         }
+      } catch (error) {
+        console.error(`Error checking for discount on game ID ${item.id}:`, error);
       }
-    } catch (error) {
-      console.error(`Error checking for discount on game ID ${item.id}:`, error);
-    }
-  }));
+    }));
 
-  saveGames(data);
-  const boughtMessageId = checkMessageId('bought');
-  if (boughtMessageId) {
-    updateOriginalMessage('bought', boughtMessageId);
-  }
-  const decidedMessageId = checkMessageId('decided');
-  if (decidedMessageId) {
-    updateOriginalMessage('decided', decidedMessageId);
-  }
-  const consideringMessageId = checkMessageId('considering');
-  if (consideringMessageId) {
-    updateOriginalMessage('considering', consideringMessageId);
-  }
-  const discountMessageId = checkMessageId('discount');
-  if (discountMessageId) {
-    updateOriginalMessage('discount', discountMessageId);
+    await Promise.all(consideringList.list.map(async (item) => {
+      try {
+        const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${item.id}&cc=my`);
+        const gameData = response.data[item.id].data;
+        if (gameData) {
+          const discountPercent = gameData.price_overview?.discount_percent || 0;
+          const name = gameData.name;
+          const coming_soon = gameData.release_date?.coming_soon || false;
+          const early_access = gameData.genres?.filter(genre => genre.id === "70").length > 0 || false;
+          const url = `https://store.steampowered.com/app/${item.id}/`;
+          const currentPrice = (gameData.price_overview?.final || 0) / 100;
+          const currency = gameData.price_overview?.currency || 'undefined';
+          item.name = gameData.name;
+          item.url = url;
+          item.coming_soon = coming_soon;
+          item.early_access = early_access;
+          item.currentPrice = currentPrice;
+          item.currency = currency;
+
+          if (discountPercent > 0 && item.discountPercent !== discountPercent) {
+            console.log('Discount found on game:', item.id, item.name, discountPercent);
+            item.discountPercent = discountPercent;
+            const discountMessage = `The game ${name} is now on sale with a ${discountPercent}% discount! Current price: ${currentPrice} ${currency}.`;
+            const guild = client.guilds.cache.get(GUILD_ID);
+            if (guild) {
+              const channel = guild.channels.cache.get(CHANNEL_ID);
+              if (channel) {
+                await sendTempMessage(channel, discountMessage);
+              }
+            }
+          } else  {
+            item.discountPercent = discountPercent;
+          }
+        }
+      } catch (error) {
+        console.error(`Error checking for discount on game ID ${item.id}:`, error);
+      }
+    }));
+
+    saveGames(data);
+    const boughtMessageId = checkMessageId('bought');
+    if (boughtMessageId) {
+      await updateOriginalMessage('bought', boughtMessageId);
+    }
+    const decidedMessageId = checkMessageId('decided');
+    if (decidedMessageId) {
+      await updateOriginalMessage('decided', decidedMessageId);
+    }
+    const consideringMessageId = checkMessageId('considering');
+    if (consideringMessageId) {
+      await updateOriginalMessage('considering', consideringMessageId);
+    }
+    const discountMessageId = checkMessageId('discount');
+    if (discountMessageId) {
+      await updateOriginalMessage('discount', discountMessageId);
+    }
+  } finally {
+    isDiscountCheckRunning = false;
   }
 }
 
@@ -205,9 +257,11 @@ setInterval(checkForDiscounts, CHECK_INTERVAL);
 setInterval(cleanupOldMessages, 60 * 60 * 1000);
 
 async function addGame(type, gameId, description) {
-  if (isNaN(gameId)) {
-    gameId = gameId.split('/')[4];
+  const parsedGameId = extractGameId(gameId);
+  if (!parsedGameId) {
+    return JSON.stringify({ status: 'error', messageText: 'Invalid game url or game id' });
   }
+  gameId = parsedGameId;
   const data = loadGames();
   const decidedList = data.find(list => list.name === "decided");
   const consideringList = data.find(list => list.name === "considering");
@@ -343,9 +397,11 @@ async function addGame(type, gameId, description) {
 }
 
 async function removeGame(gameId) {
-  if (isNaN(gameId)) {
-    gameId = gameId.split('/')[4];
+  const parsedGameId = extractGameId(gameId);
+  if (!parsedGameId) {
+    return JSON.stringify({ status: 'error', messageText: 'Invalid game url or game id' });
   }
+  gameId = parsedGameId;
   const data = loadGames();
   const decidedList = data.find(list => list.name === "decided");
   const consideringList = data.find(list => list.name === "considering");
@@ -519,6 +575,10 @@ client.on('messageCreate', async message => {
 
   const handleSetMessageId = () => {
     const [command, type, messageId] = message.content.split(' ');
+    if (!VALID_LIST_TYPES.has(type) || !messageId) {
+      sendTempMessage(message.channel, 'Invalid command. Use: !setMessageId <type> <message_id>. Type must be bought, decided, considering, or discount.');
+      return;
+    }
     const updateSuccess = setMessageId(type, messageId);
 
     if (updateSuccess) {
@@ -528,8 +588,8 @@ client.on('messageCreate', async message => {
     }
   };
 
-  const handleCheckDiscounts = () => {
-    checkForDiscounts();
+  const handleCheckDiscounts = async () => {
+    await checkForDiscounts();
     const messageId = checkMessageId('discount');
     if (messageId) {
       sendTempMessage(message.channel, `Discounts checked. Check pinned message for the list of games with discounts.`);
@@ -553,7 +613,7 @@ client.on('messageCreate', async message => {
   } else if (message.content.startsWith('!setMessageId')) {
     handleSetMessageId();
   } else if (message.content === '!checkDiscounts') {
-    handleCheckDiscounts();
+    await handleCheckDiscounts();
   } else if (message.content === '!cleanupMessages') {
     cleanupOldMessages();
     sendTempMessage(message.channel, 'Old temporary messages have been cleaned up.');
