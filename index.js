@@ -15,6 +15,9 @@ const CHANNEL_ID = process.env.CHANNEL_ID || '';
 const GAMES_FILE_PATH = path.join(__dirname, 'games.json');
 const SETTING_FILE_PATH = path.join(__dirname, 'setting.json');
 const TEMP_MESSAGES_FILE_PATH = path.join(__dirname, 'temp_messages.json');
+const SERVER_STATUS_FILE_PATH = path.join(__dirname, 'server_status.json');
+const BACKUP_DIR_PATH = path.join(__dirname, 'backups');
+const SINGLE_BACKUP_FILE_PATH = path.join(BACKUP_DIR_PATH, 'games.backup.json');
 const VALID_LIST_TYPES = new Set(['bought', 'decided', 'considering', 'discount']);
 
 let isDiscountCheckRunning = false;
@@ -47,6 +50,41 @@ function extractGameId(value) {
   return null;
 }
 
+function ensureBackupDirectory() {
+  if (!fs.existsSync(BACKUP_DIR_PATH)) {
+    fs.mkdirSync(BACKUP_DIR_PATH, { recursive: true });
+  }
+}
+
+function backupGamesFile(reason = 'manual') {
+  try {
+    if (!fs.existsSync(GAMES_FILE_PATH)) {
+      return null;
+    }
+
+    ensureBackupDirectory();
+    fs.copyFileSync(GAMES_FILE_PATH, SINGLE_BACKUP_FILE_PATH);
+    return SINGLE_BACKUP_FILE_PATH;
+  } catch (error) {
+    console.error('Error creating games backup:', error);
+    return null;
+  }
+}
+
+function recordDiscountCheckRun() {
+  try {
+    const now = new Date();
+    const statusData = {
+      lastDiscountCheckRunAt: now.toISOString(),
+      lastDiscountCheckRunLocal: now.toLocaleString(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'local'
+    };
+    fs.writeFileSync(SERVER_STATUS_FILE_PATH, JSON.stringify(statusData, null, 2));
+  } catch (error) {
+    console.error('Error writing server status file:', error);
+  }
+}
+
 function loadGames() {
   try {
     const data = fs.readFileSync(GAMES_FILE_PATH);
@@ -59,6 +97,7 @@ function loadGames() {
 
 function saveGames(games) {
   try {
+    backupGamesFile('before-save');
     fs.writeFileSync(GAMES_FILE_PATH, JSON.stringify(games, null, 2));
   } catch (error) {
     console.error('Error writing games file:', error);
@@ -116,6 +155,7 @@ async function checkForDiscounts() {
 
   isDiscountCheckRunning = true;
   console.log('Checking for discounts...');
+  recordDiscountCheckRun();
   try {
     const data = loadGames();
     const decidedList = data.find(list => list.name === "decided");
@@ -521,6 +561,7 @@ client.login(BOT_TOKEN);
 
 client.once('clientReady', () => {
   console.log('Ready to check for discounts!');
+  backupGamesFile('startup');
   cleanupOldMessages();
   checkForDiscounts();
 });
@@ -536,7 +577,8 @@ client.on('messageCreate', async message => {
       `\*\*!setMessageId\*\* \*\*\*<type> <message_id>\*\*\* - Set the message to hold the latest information for the list of a specified type. (type: bought, decided, considering, discount)\n` +
       `\*\*!checkDiscounts\*\* - Trigger a check for discounts on the games in the list.\n` +
       `\*\*!cleanupMessages\*\* - Manually trigger cleanup of old temporary messages.\n` +
-      `\*\*!messageStats\*\* - Show statistics about temporary messages.`;
+      `\*\*!messageStats\*\* - Show statistics about temporary messages.\n` +
+      `\*\*!backupGames\*\* - Create a manual backup of games.json.`;
     message.channel.send(helpText);
   };
 
@@ -598,6 +640,15 @@ client.on('messageCreate', async message => {
     }
   };
 
+  const handleBackupGames = () => {
+    const backupPath = backupGamesFile('manual');
+    if (backupPath) {
+      sendTempMessage(message.channel, 'Backup updated: games.backup.json');
+    } else {
+      sendTempMessage(message.channel, 'Backup failed. Please check bot logs.');
+    }
+  };
+
   if (message.content === '!help') {
     sendHelpMessage();
   } else if (message.content.startsWith('!addBought ')) {
@@ -626,6 +677,8 @@ client.on('messageCreate', async message => {
       `Oldest message: ${stats.oldestMessage}\n` +
       `Newest message: ${stats.newestMessage}`;
     sendTempMessage(message.channel, statsMessage);
+  } else if (message.content === '!backupGames') {
+    handleBackupGames();
   }
 });
 
