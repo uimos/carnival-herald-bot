@@ -36,7 +36,7 @@ There are 3 types of list
 ## New Features
 
 ### Automatic Message Cleanup
-The bot now automatically stores and deletes temporary messages after 30 days to keep your Discord channel clean. This includes:
+The bot now automatically stores and deletes temporary messages after 14 days to keep your Discord channel clean. This includes:
 - Discount notifications
 - Command confirmation messages
 - Error messages
@@ -44,7 +44,7 @@ The bot now automatically stores and deletes temporary messages after 30 days to
 
 ### Configuration
 You can adjust the message retention period by modifying the `MESSAGE_RETENTION_DAYS` constant in `index.js`:
-- Default: 30 days
+- Default: 14 days
 - For 7 days: Change to `7`
 - For 1 day: Change to `1`
 
