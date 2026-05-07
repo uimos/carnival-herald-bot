@@ -33,7 +33,17 @@ There are 3 types of list
 
 `!messageStats` - Show statistics about temporary messages.
 
+`!backupGames` - Create a manual backup of `games.json`.
+
 ## New Features
+
+### Server Status Logging
+The bot now writes only the latest discount check timestamp to `server_status.json`:
+- `lastDiscountCheckRunAt`
+- `lastDiscountCheckRunLocal`
+- `timezone`
+
+Each check overwrites the old value, so the file always shows the latest run time.
 
 ### Automatic Message Cleanup
 The bot now automatically stores and deletes temporary messages after 14 days to keep your Discord channel clean. This includes:
@@ -50,11 +60,23 @@ You can adjust the message retention period by modifying the `MESSAGE_RETENTION_
 
 ### Files Created
 - `temp_messages.json` - Stores temporary message IDs and deletion timestamps
+- `server_status.json` - Stores the latest discount check run time
+- `backups/games.backup.json` - Single backup file for `games.json` (overwritten each time)
+
+### Games Backup
+- A backup is created on startup
+- A backup is created before every write to `games.json`
+- You can trigger a manual backup with `!backupGames`
+- Only one backup file is kept and overwritten: `backups/games.backup.json`
 
 ### Cleanup Schedule
-- Automatic cleanup runs every day
+- Automatic cleanup check runs every hour
 - Manual cleanup can be triggered with `!cleanupMessages`
 - Cleanup runs on bot startup to handle any messages that should have been deleted while the bot was offline
+
+### Discount Check Schedule
+- Automatic discount check runs every 24 hours
+- Manual check can be triggered with `!checkDiscounts`
 
 ## Installation
 Create .env file to store your config.
